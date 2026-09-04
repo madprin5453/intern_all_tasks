@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expedition Dossier — Application</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F3EDE0;
+    --paper-soft:#EAE2D0;
+    --ink:#1F2A24;
+    --ink-dim:#5B6960;
+    --forest:#20302A;
+    --forest-soft:#2A3D34;
+    --brass:#B8863B;
+    --brass-light:#D6AC64;
+    --terracotta:#B6432D;
+    --route:#4C6E7D;
+    --line:rgba(31,42,36,0.14);
+    --radius:16px;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; min-height:100vh;
+    background:
+      radial-gradient(circle at 20% -10%, #33473c 0%, transparent 55%),
+      var(--forest);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    display:flex; align-items:flex-start; justify-content:center;
+    padding:56px 20px 80px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  }
+
+  .stage{ width:100%; max-width:640px; }
+
+  .stage-head{ text-align:center; margin-bottom:28px; }
+  .stage-eyebrow{
+    font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:3px; text-transform:uppercase;
+    color:var(--brass-light); margin-bottom:10px;
+  }
+  .stage-title{
+    font-family:'Cormorant Garamond', serif; font-style:italic; font-weight:600;
+    font-size:34px; color:var(--paper); line-height:1.15;
+  }
+
+  /* ---------- route progress ---------- */
+  .route{
+    display:flex; align-items:flex-start; justify-content:space-between;
+    margin:34px 0 30px; position:relative; padding:0 6px;
+  }
+  .route::before{
+    content:''; position:absolute; top:11px; left:24px; right:24px; height:1px;
+    background:repeating-linear-gradient(90deg, rgba(214,172,100,0.35) 0 6px, transparent 6px 12px);
+    z-index:0;
+  }
+  .waypoint{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; flex:1; }
+  .dot{
+    width:22px; height:22px; border-radius:50%; background:var(--forest-soft);
+    border:1.5px solid rgba(214,172,100,0.4); display:flex; align-items:center; justify-content:center;
+    font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--brass-light);
+    transition:all .4s var(--ease);
+  }
+  .waypoint.active .dot{
+    background:var(--brass); border-color:var(--brass); color:var(--forest);
+    box-shadow:0 0 0 5px rgba(184,134,59,0.18);
+    transform:scale(1.08);
+  }
+  .waypoint.done .dot{ background:var(--route); border-color:var(--route); color:var(--paper); }
+  .wp-label{
+    margin-top:9px; font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:1px; text-transform:uppercase;
+    color:rgba(243,237,224,0.45); text-align:center; max-width:80px; transition:color .3s var(--ease);
+  }
+  .waypoint.active .wp-label{ color:var(--paper); }
+
+  /* ---------- card ---------- */
+  .card{
+    background:var(--paper); border-radius:var(--radius);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.04);
+    overflow:hidden; position:relative;
+  }
+  .card-top-edge{
+    height:6px; width:100%;
+    background:repeating-linear-gradient(90deg, var(--brass) 0 10px, var(--brass-light) 10px 20px);
+    opacity:.55;
+  }
+  .card-body{ padding:38px 40px 32px; position:relative; min-height:340px; }
+
+  .draft-note{
+    display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink-dim);
+    background:var(--paper-soft); border:1px solid var(--line); border-radius:9px;
+    padding:9px 12px; margin-bottom:22px;
+  }
+  .draft-note svg{ flex-shrink:0; color:var(--route); }
+
+  /* step panels */
+  .step-panel{ display:none; }
+  .step-panel.current{ display:block; animation:slide-in .45s var(--ease); }
+  .step-panel.leaving-back{ animation:slide-in-back .45s var(--ease); }
+  @keyframes slide-in{
+    from{ opacity:0; transform:translateX(28px); }
+    to{ opacity:1; transform:translateX(0); }
+  }
+  @keyframes slide-in-back{
+    from{ opacity:0; transform:translateX(-28px); }
+    to{ opacity:1; transform:translateX(0); }
+  }
+
+  .step-heading{ font-family:'Cormorant Garamond', serif; font-weight:600; font-size:24px; margin-bottom:4px; }
+  .step-sub{ font-size:13px; color:var(--ink-dim); margin-bottom:26px; }
+
+  .field{ margin-bottom:20px; }
+  .field label{
+    display:block; font-size:12px; font-weight:600; letter-spacing:0.3px; margin-bottom:7px; color:var(--ink);
+  }
+  .field label .req{ color:var(--terracotta); margin-left:2px; }
+  .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+
+  input[type="text"], input[type="email"], input[type="tel"], input[type="number"], select{
+    width:100%; padding:12px 14px; border-radius:10px;
+    border:1px solid rgba(31,42,36,0.2); background:#fff;
+    font-family:'Inter', sans-serif; font-size:14px; color:var(--ink);
+    transition:border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  input:focus, select:focus{
+    outline:none; border-color:var(--brass); box-shadow:0 0 0 3px rgba(184,134,59,0.15);
+  }
+  input.invalid, select.invalid{ border-color:var(--terracotta); box-shadow:0 0 0 3px rgba(182,67,45,0.12); }
+
+  .field-error{
+    font-size:11.5px; color:var(--terracotta); margin-top:6px; display:none; align-items:center; gap:5px;
+  }
+  .field-error.show{ display:flex; }
+
+  select{ appearance:none; -webkit-appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231F2A24' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat:no-repeat; background-position:right 12px center;
+  }
+
+  /* ---------- summary / boarding pass ---------- */
+  .pass{
+    border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    background:var(--paper-soft);
+  }
+  .pass-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:16px 18px; background:var(--forest); color:var(--paper);
+  }
+  .pass-head .pass-title{ font-family:'Cormorant Garamond', serif; font-style:italic; font-size:19px; }
+  .pass-head .pass-ref{ font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--brass-light); letter-spacing:1px; }
+  .pass-rows{ padding:16px 18px; display:grid; grid-template-columns:1fr 1fr; gap:14px 20px; }
+  .pass-row .p-label{ font-family:'JetBrains Mono', monospace; font-size:9px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink-dim); margin-bottom:4px; }
+  .pass-row .p-value{ font-size:14px; font-weight:500; }
+  .perforation{
+    height:0; border-top:1.5px dashed rgba(31,42,36,0.25); margin:0 18px; position:relative;
+  }
+  .perforation::before, .perforation::after{
+    content:''; position:absolute; top:-9px; width:18px; height:18px; border-radius:50%; background:var(--forest);
+  }
+  .perforation::before{ left:-27px; }
+  .perforation::after{ right:-27px; }
+
+  /* ---------- nav ---------- */
+  .nav-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:22px 40px 30px; border-top:1px solid var(--line); background:var(--paper);
+  }
+  .btn{
+    font-family:'Inter', sans-serif; font-weight:600; font-size:13.5px; letter-spacing:0.2px;
+    padding:12px 24px; border-radius:10px; border:none; cursor:pointer;
+    transition:transform .15s var(--ease), background .2s var(--ease), opacity .2s var(--ease);
+  }
+  .btn:active{ transform:scale(0.97); }
+  .btn-primary{ background:var(--brass); color:var(--forest); }
+  .btn-primary:hover{ background:var(--brass-light); }
+  .btn-ghost{ background:transparent; color:var(--ink-dim); border:1px solid var(--line); }
+  .btn-ghost:hover{ color:var(--ink); border-color:rgba(31,42,36,0.3); }
+  .btn[disabled]{ opacity:0.4; cursor:not-allowed; }
+  .btn-primary.submit{ background:var(--terracotta); color:var(--paper); }
+  .btn-primary.submit:hover{ background:#c65a41; }
+
+  /* ---------- confirmation ---------- */
+  .confirm-wrap{ text-align:center; padding:10px 6px 4px; }
+  .stamp{
+    width:76px; height:76px; margin:0 auto 18px; border-radius:50%;
+    border:2.5px solid var(--route); display:flex; align-items:center; justify-content:center;
+    transform:rotate(-8deg); animation:stamp-in .5s var(--ease);
+    color:var(--route);
+  }
+  @keyframes stamp-in{ from{ opacity:0; transform:rotate(-8deg) scale(0.6); } to{ opacity:1; transform:rotate(-8deg) scale(1); } }
+  .confirm-title{ font-family:'Cormorant Garamond', serif; font-style:italic; font-weight:600; font-size:26px; margin-bottom:8px; }
+  .confirm-sub{ font-size:13.5px; color:var(--ink-dim); margin-bottom:24px; }
+
+  footer.note{
+    text-align:center; margin-top:22px; font-family:'JetBrains Mono', monospace;
+    font-size:10px; color:rgba(243,237,224,0.4); letter-spacing:1px;
+  }
+
+  @media (max-width:560px){
+    .card-body{ padding:30px 22px 26px; }
+    .nav-row{ padding:18px 22px 26px; }
+    .field-row{ grid-template-columns:1fr; }
+    .pass-rows{ grid-template-columns:1fr; }
+    .wp-label{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <div class="stage-head">
+    <div class="stage-eyebrow">Field Expedition Programme</div>
+    <div class="stage-title">Expedition Dossier</div>
+  </div>
+
+  <div class="route" id="route"></div>
+
+  <div class="card">
+    <div class="card-top-edge"></div>
+    <div class="card-body" id="card-body">
+
+      <div id="draft-note" class="draft-note hidden">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 8v5l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>Draft restored from your last visit — pick up where you left off.</span>
+      </div>
+
+      <!-- Step 1 -->
+      <section class="step-panel" data-step="1">
+        <div class="step-heading">Traveler Details</div>
+        <div class="step-sub">Tell us who's joining the expedition roster.</div>
+
+        <div class="field">
+          <label for="fullName">Full name <span class="req">*</span></label>
+          <input type="text" id="fullName" placeholder="Amara Osei">
+          <div class="field-error" data-error-for="fullName"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Enter your full name.</span></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="email">Email <span class="req">*</span></label>
+            <input type="email" id="email" placeholder="amara@example.com">
+            <div class="field-error" data-error-for="email"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Enter a valid email address.</span></div>
+          </div>
+          <div class="field">
+            <label for="phone">Phone</label>
+            <input type="tel" id="phone" placeholder="+1 555 000 1234">
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="step-panel" data-step="2">
+        <div class="step-heading">Expedition Preferences</div>
+        <div class="step-sub">Shape the route to match your ambitions.</div>
+
+        <div class="field">
+          <label for="destination">Terrain type <span class="req">*</span></label>
+          <select id="destination">
+            <option value="">Select a terrain</option>
+            <option value="Alpine">Alpine — high altitude</option>
+            <option value="Coastal">Coastal — sea routes</option>
+            <option value="Desert">Desert — arid crossing</option>
+            <option value="Rainforest">Rainforest — dense canopy</option>
+          </select>
+          <div class="field-error" data-error-for="destination"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Choose a terrain type.</span></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="season">Preferred season <span class="req">*</span></label>
+            <select id="season">
+              <option value="">Select a season</option>
+              <option value="Spring">Spring</option>
+              <option value="Summer">Summer</option>
+              <option value="Autumn">Autumn</option>
+              <option value="Winter">Winter</option>
+            </select>
+            <div class="field-error" data-error-for="season"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Choose a season.</span></div>
+          </div>
+          <div class="field">
+            <label for="groupSize">Group size</label>
+            <input type="number" id="groupSize" min="1" max="20" placeholder="4">
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 3 -->
+      <section class="step-panel" data-step="3">
+        <div class="step-heading">Emergency Contact</div>
+        <div class="step-sub">Who should we notify if the route gets rough.</div>
+
+        <div class="field">
+          <label for="contactName">Contact name <span class="req">*</span></label>
+          <input type="text" id="contactName" placeholder="Jordan Blake">
+          <div class="field-error" data-error-for="contactName"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Enter a contact name.</span></div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="relationship">Relationship</label>
+            <input type="text" id="relationship" placeholder="Sibling, partner, friend…">
+          </div>
+          <div class="field">
+            <label for="contactPhone">Contact phone <span class="req">*</span></label>
+            <input type="tel" id="contactPhone" placeholder="+1 555 000 5678">
+            <div class="field-error" data-error-for="contactPhone"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Enter a contact phone number.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 4 -->
+      <section class="step-panel" data-step="4">
+        <div class="step-heading">Review &amp; Submit</div>
+        <div class="step-sub">Confirm the details before we file your dossier.</div>
+
+        <div class="pass">
+          <div class="pass-head">
+            <span class="pass-title">Boarding — Expedition</span>
+            <span class="pass-ref" id="ref-code">EXP-000000</span>
+          </div>
+          <div class="pass-rows">
+            <div class="pass-row"><div class="p-label">Traveler</div><div class="p-value" id="sum-name">—</div></div>
+            <div class="pass-row"><div class="p-label">Email</div><div class="p-value" id="sum-email">—</div></div>
+            <div class="pass-row"><div class="p-label">Terrain</div><div class="p-value" id="sum-destination">—</div></div>
+            <div class="pass-row"><div class="p-label">Season</div><div class="p-value" id="sum-season">—</div></div>
+            <div class="pass-row"><div class="p-label">Group size</div><div class="p-value" id="sum-group">—</div></div>
+            <div class="pass-row"><div class="p-label">Emergency contact</div><div class="p-value" id="sum-contact">—</div></div>
+          </div>
+          <div class="perforation"></div>
+          <div class="pass-rows" style="grid-template-columns:1fr;">
+            <div class="pass-row"><div class="p-label">Contact phone</div><div class="p-value" id="sum-contact-phone">—</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Confirmation -->
+      <section class="step-panel" data-step="confirm">
+        <div class="confirm-wrap">
+          <div class="stamp">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="confirm-title">Dossier Filed</div>
+          <div class="confirm-sub">Reference <strong id="confirm-ref">EXP-000000</strong> — a copy has been saved to this device.</div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="nav-row" id="nav-row">
+      <button class="btn btn-ghost" id="prev-btn">Back</button>
+      <button class="btn btn-primary" id="next-btn">Continue</button>
+    </div>
+  </div>
+
+  <footer class="note">Autosaves as you go · Nothing is sent anywhere</footer>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'expedition_dossier_draft_v1';
+
+  const steps = [
+    { id:1, label:'Traveler', fields:['fullName','email'] },
+    { id:2, label:'Preferences', fields:['destination','season'] },
+    { id:3, label:'Contact', fields:['contactName','contactPhone'] },
+    { id:4, label:'Review', fields:[] }
+  ];
+
+  const routeEl   = document.getElementById('route');
+  const cardBody  = document.getElementById('card-body');
+  const prevBtn   = document.getElementById('prev-btn');
+  const nextBtn   = document.getElementById('next-btn');
+  const navRow    = document.getElementById('nav-row');
+  const draftNote = document.getElementById('draft-note');
+
+  let current = 1; // 1..4, then 'confirm'
+  let direction = 'fwd';
+
+  const fieldIds = ['fullName','email','phone','destination','season','groupSize','contactName','relationship','contactPhone'];
+
+  // ---------- build route waypoints ----------
+  function renderRoute(){
+    routeEl.innerHTML = '';
+    steps.forEach(s => {
+      const wp = document.createElement('div');
+      wp.className = 'waypoint' + (s.id === current ? ' active' : '') + (s.id < current ? ' done' : '');
+      wp.innerHTML = `<div class="dot">${s.id < current ? '✓' : s.id}</div><div class="wp-label">${s.label}</div>`;
+      routeEl.appendChild(wp);
+    });
+  }
+
+  // ---------- validation ----------
+  function validateField(id){
+    const el = document.getElementById(id);
+    const errEl = document.querySelector(`[data-error-for="${id}"]`);
+    let valid = true;
+
+    if(id === 'fullName' || id === 'contactName' || id === 'destination' || id === 'season' || id === 'contactPhone'){
+      valid = el.value.trim().length > 0;
+    }
+    if(id === 'email'){
+      valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(el.value.trim());
+    }
+    if(id === 'contactPhone'){
+      valid = el.value.trim().length >= 6;
+    }
+
+    el.classList.toggle('invalid', !valid);
+    if(errEl) errEl.classList.toggle('show', !valid);
+    return valid;
+  }
+
+  function validateStep(stepId){
+    const step = steps.find(s => s.id === stepId);
+    if(!step) return true;
+    let allValid = true;
+    step.fields.forEach(f => { if(!validateField(f)) allValid = false; });
+    return allValid;
+  }
+
+  // clear error state as user types
+  fieldIds.forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', ()=>{
+      if(el.classList.contains('invalid')) validateField(id);
+      autosave();
+    });
+    el.addEventListener('change', autosave);
+  });
+
+  // ---------- autosave ----------
+  function collectData(){
+    const data = {};
+    fieldIds.forEach(id => {
+      const el = document.getElementById(id);
+      if(el) data[id] = el.value;
+    });
+    return data;
+  }
+  function autosave(){
+    const payload = { step: current, data: collectData(), savedAt: Date.now() };
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); }catch(e){}
+  }
+  function restore(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return;
+      const payload = JSON.parse(raw);
+      if(!payload || !payload.data) return;
+      Object.entries(payload.data).forEach(([id, val])=>{
+        const el = document.getElementById(id);
+        if(el && val) el.value = val;
+      });
+      if(payload.step && payload.step >= 1 && payload.step <= 4){
+        current = payload.step;
+      }
+      draftNote.classList.remove('hidden');
+    }catch(e){}
+  }
+
+  // ---------- reference code ----------
+  function genRefCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'EXP-';
+    for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
+    return code;
+  }
+  let refCode = null;
+
+  // ---------- summary ----------
+  function fillSummary(){
+    const d = collectData();
+    document.getElementById('sum-name').textContent = d.fullName || '—';
+    document.getElementById('sum-email').textContent = d.email || '—';
+    document.getElementById('sum-destination').textContent = d.destination || '—';
+    document.getElementById('sum-season').textContent = d.season || '—';
+    document.getElementById('sum-group').textContent = d.groupSize ? d.groupSize + ' travelers' : '—';
+    const contactBits = [d.contactName, d.relationship].filter(Boolean).join(' · ');
+    document.getElementById('sum-contact').textContent = contactBits || '—';
+    document.getElementById('sum-contact-phone').textContent = d.contactPhone || '—';
+    if(!refCode) refCode = genRefCode();
+    document.getElementById('ref-code').textContent = refCode;
+  }
+
+  // ---------- panel visibility ----------
+  function showPanel(stepKey){
+    document.querySelectorAll('.step-panel').forEach(p=>{
+      p.classList.remove('current','leaving-back');
+    });
+    const panel = document.querySelector(`.step-panel[data-step="${stepKey}"]`);
+    if(panel){
+      if(direction === 'back') panel.classList.add('leaving-back');
+      panel.classList.add('current');
+    }
+  }
+
+  function updateNav(){
+    if(current === 'confirm'){
+      navRow.classList.add('hidden');
+      return;
+    }
+    navRow.classList.remove('hidden');
+    prevBtn.disabled = current === 1;
+    prevBtn.style.visibility = current === 1 ? 'hidden' : 'visible';
+
+    if(current === 4){
+      nextBtn.textContent = 'Submit Dossier';
+      nextBtn.classList.add('submit');
+    }else{
+      nextBtn.textContent = 'Continue';
+      nextBtn.classList.remove('submit');
+    }
+  }
+
+  function render(){
+    renderRoute();
+    showPanel(current);
+    updateNav();
+    if(current === 4) fillSummary();
+  }
+
+  // ---------- nav actions ----------
+  nextBtn.addEventListener('click', ()=>{
+    if(current === 4){
+      // submit
+      fillSummary();
+      autosave();
+      current = 'confirm';
+      direction = 'fwd';
+      document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('current'));
+      document.querySelector('.step-panel[data-step="confirm"]').classList.add('current');
+      document.getElementById('confirm-ref').textContent = refCode;
+      navRow.classList.add('hidden');
+      routeEl.querySelectorAll('.waypoint').forEach(w => w.classList.add('done'));
+      try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+      return;
+    }
+    if(!validateStep(current)) return;
+    direction = 'fwd';
+    current += 1;
+    autosave();
+    render();
+  });
+
+  prevBtn.addEventListener('click', ()=>{
+    if(current === 1) return;
+    direction = 'back';
+    current -= 1;
+    render();
+  });
+
+  // ---------- init ----------
+  restore();
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Light Table — Image Uploader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --charcoal:#141311;
+    --charcoal-soft:#1D1A16;
+    --charcoal-softer:#26221C;
+    --paper:#EDE7DA;
+    --paper-dim:#C9C2B2;
+    --safelight:#C1432E;
+    --safelight-glow:rgba(193,67,46,0.45);
+    --amber:#D9A441;
+    --line:rgba(237,231,218,0.12);
+    --line-strong:rgba(237,231,218,0.22);
+    --muted:#948D80;
+    --radius:14px;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; min-height:100vh;
+    background:var(--charcoal);
+    color:var(--paper);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:0.001ms !important; transition-duration:0.001ms !important; }
+  }
+
+  .wrap{ max-width:760px; margin:0 auto; padding:48px 24px 90px; }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    padding-bottom:20px; margin-bottom:34px; border-bottom:1px solid var(--line);
+  }
+  .brand-mark{ font-family:'Instrument Serif', serif; font-style:italic; font-size:28px; color:var(--paper); }
+  .brand-sub{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:var(--safelight); margin-top:4px; }
+  .count-badge{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); letter-spacing:0.5px; }
+
+  /* ---------- sprocket strips ---------- */
+  .sprocket{
+    height:16px; margin:0 auto;
+    background-image: radial-gradient(circle, var(--charcoal) 3.4px, transparent 3.6px);
+    background-size: 22px 16px;
+    background-position: 11px center;
+    background-color: var(--charcoal-softer);
+    border-radius:3px;
+  }
+  .sprocket.top{ margin-bottom:0; }
+  .sprocket.bottom{ margin-top:0; }
+
+  /* ---------- dropzone ---------- */
+  .dropzone-shell{ position:relative; }
+  #dropzone{
+    background:var(--charcoal-soft);
+    border-left:1px solid var(--line-strong);
+    border-right:1px solid var(--line-strong);
+    padding:56px 24px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+    gap:6px;
+    cursor:pointer;
+    transition:background .25s var(--ease), box-shadow .3s var(--ease);
+    position:relative;
+    overflow:hidden;
+  }
+  #dropzone::before{
+    content:''; position:absolute; inset:0;
+    background:radial-gradient(circle at 50% 30%, var(--safelight-glow), transparent 60%);
+    opacity:0; transition:opacity .35s var(--ease);
+    pointer-events:none;
+  }
+  #dropzone.drag-active{ background:#241C18; }
+  #dropzone.drag-active::before{ opacity:0.5; }
+  #dropzone:focus-visible{ outline:2px solid var(--amber); outline-offset:-4px; }
+
+  .drop-icon{
+    width:44px; height:44px; margin-bottom:6px; opacity:.85;
+    transition:transform .3s var(--ease);
+  }
+  #dropzone.drag-active .drop-icon{ transform:translateY(-4px); }
+
+  .drop-title{ font-family:'Instrument Serif', serif; font-size:22px; color:var(--paper); }
+  .drop-sub{ font-size:13px; color:var(--muted); }
+  .drop-formats{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:1.5px; color:var(--safelight); text-transform:uppercase; margin-top:10px; }
+
+  #file-input{ display:none; }
+
+  /* ---------- error ---------- */
+  .error{
+    margin-top:16px; padding:12px 16px; border-radius:10px;
+    background:rgba(193,67,46,0.12); border:1px solid rgba(193,67,46,0.4);
+    color:#f0a495; font-size:13px; display:flex; align-items:flex-start; gap:9px;
+    animation:shake-in .35s var(--ease);
+  }
+  .error svg{ flex-shrink:0; margin-top:1px; }
+  @keyframes shake-in{
+    0%{ opacity:0; transform:translateY(-4px); }
+    100%{ opacity:1; transform:translateY(0); }
+  }
+  .hidden{ display:none !important; }
+
+  /* ---------- contact sheet ---------- */
+  .sheet-header{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin:38px 0 16px;
+  }
+  .sheet-title{ font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:2.5px; text-transform:uppercase; color:var(--muted); }
+  .sheet-clear{
+    background:none; border:none; font-family:'Inter'; font-size:12px; color:var(--muted);
+    cursor:pointer; text-decoration:underline; text-underline-offset:3px;
+  }
+  .sheet-clear:hover{ color:var(--safelight); }
+
+  .empty-state{
+    padding:36px 0; text-align:center; color:var(--muted); font-size:13px;
+    border:1px dashed var(--line); border-radius:var(--radius);
+  }
+
+  .contact-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); gap:14px;
+  }
+
+  .frame{
+    position:relative; background:var(--charcoal-softer);
+    border:1px solid var(--line); border-radius:10px;
+    overflow:hidden; aspect-ratio:1/1;
+    animation:frame-in .45s var(--ease);
+  }
+  @keyframes frame-in{ from{ opacity:0; transform:scale(.94); } to{ opacity:1; transform:scale(1); } }
+
+  .frame img{ width:100%; height:100%; object-fit:cover; display:block; filter:saturate(0.92) contrast(1.02); }
+
+  .frame-number{
+    position:absolute; top:7px; left:8px;
+    font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--amber);
+    background:rgba(20,19,17,0.55); padding:2px 6px; border-radius:4px; letter-spacing:1px;
+  }
+
+  .frame-remove{
+    position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%;
+    background:rgba(20,19,17,0.6); border:1px solid var(--line-strong);
+    color:var(--paper); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; opacity:0; transition:opacity .2s var(--ease), background .2s var(--ease);
+  }
+  .frame:hover .frame-remove{ opacity:1; }
+  .frame-remove:hover{ background:var(--safelight); border-color:var(--safelight); }
+
+  .frame-footer{
+    position:absolute; left:0; right:0; bottom:0;
+    padding:7px 8px 8px;
+    background:linear-gradient(180deg, transparent, rgba(20,19,17,0.85) 55%);
+  }
+  .frame-name{
+    font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--paper-dim);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; margin-bottom:5px;
+  }
+  .progress-track{
+    height:3px; width:100%; background:rgba(237,231,218,0.15); border-radius:2px; overflow:hidden;
+  }
+  .progress-fill{
+    height:100%; width:0%; background:linear-gradient(90deg, var(--safelight), var(--amber));
+    transition:width .18s linear;
+  }
+  .frame-status{
+    font-family:'JetBrains Mono', monospace; font-size:8.5px; letter-spacing:1px; text-transform:uppercase;
+    color:var(--amber); margin-top:4px; display:block;
+  }
+  .frame.ready .progress-track{ display:none; }
+  .frame.ready .frame-status{ color:#8FBF7A; }
+
+  footer.note{
+    text-align:center; margin-top:46px; font-family:'JetBrains Mono', monospace;
+    font-size:10px; color:var(--muted); opacity:.55; letter-spacing:1px;
+  }
+
+  @media (max-width:480px){
+    .wrap{ padding:32px 16px 70px; }
+    #dropzone{ padding:40px 16px; }
+    .contact-grid{ grid-template-columns:repeat(auto-fill, minmax(110px,1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="brand-mark">Light Table</div>
+      <div class="brand-sub">Image Intake &amp; Preview</div>
+    </div>
+    <div class="count-badge" id="count-badge">0 frames loaded</div>
+  </header>
+
+  <div class="dropzone-shell">
+    <div class="sprocket top"></div>
+    <div id="dropzone" tabindex="0" role="button" aria-label="Drop images here or click to browse">
+      <svg class="drop-icon" viewBox="0 0 48 48" fill="none" stroke="#EDE7DA" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="7" width="34" height="34" rx="3" stroke="#948D80"/>
+        <circle cx="17" cy="18" r="3.2" stroke="#D9A441"/>
+        <path d="M9 33l10-10 7 7 6-6 8 8" stroke="#EDE7DA"/>
+      </svg>
+      <div class="drop-title">Drop images onto the table</div>
+      <div class="drop-sub">or click to browse your files</div>
+      <div class="drop-formats">JPG · PNG · GIF only</div>
+      <input type="file" id="file-input" accept="image/jpeg,image/png,image/gif" multiple>
+    </div>
+    <div class="sprocket bottom"></div>
+  </div>
+
+  <div id="error" class="error hidden">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    <span id="error-text">Unsupported file type.</span>
+  </div>
+
+  <div class="sheet-header">
+    <div class="sheet-title">Contact Sheet</div>
+    <button class="sheet-clear hidden" id="clear-all">Clear all</button>
+  </div>
+
+  <div id="empty-state" class="empty-state">No frames developed yet — drop an image above to begin.</div>
+  <div class="contact-grid" id="contact-grid"></div>
+
+  <footer class="note">Stored locally in this browser · Nothing leaves your device</footer>
+</div>
+
+<script>
+(function(){
+  const dropzone   = document.getElementById('dropzone');
+  const fileInput  = document.getElementById('file-input');
+  const errorBox   = document.getElementById('error');
+  const errorText  = document.getElementById('error-text');
+  const grid       = document.getElementById('contact-grid');
+  const emptyState = document.getElementById('empty-state');
+  const countBadge = document.getElementById('count-badge');
+  const clearAllBtn= document.getElementById('clear-all');
+
+  const STORAGE_KEY = 'lighttable_frames_v1';
+  const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+  const MAX_BYTES = 4 * 1024 * 1024; // 4MB per file, keeps localStorage happy
+
+  let frames = loadFromStorage(); // [{id, name, type, size, dataUrl}]
+  let frameCounter = frames.length;
+
+  renderAll();
+
+  // ---------- storage helpers ----------
+  function loadFromStorage(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){
+      return [];
+    }
+  }
+  function saveToStorage(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(frames));
+    }catch(e){
+      showError('Storage is full — older frames may not persist after refresh.');
+    }
+  }
+
+  // ---------- error banner ----------
+  let errorTimer = null;
+  function showError(msg){
+    errorText.textContent = msg;
+    errorBox.classList.remove('hidden');
+    clearTimeout(errorTimer);
+    errorTimer = setTimeout(()=> errorBox.classList.add('hidden'), 4500);
+  }
+
+  // ---------- UI state ----------
+  function updateChrome(){
+    countBadge.textContent = frames.length + (frames.length === 1 ? ' frame loaded' : ' frames loaded');
+    emptyState.classList.toggle('hidden', frames.length > 0);
+    clearAllBtn.classList.toggle('hidden', frames.length === 0);
+  }
+
+  function renderAll(){
+    grid.innerHTML = '';
+    frames.forEach((f, i) => grid.appendChild(buildFrameEl(f, i, true)));
+    updateChrome();
+  }
+
+  function buildFrameEl(frameData, index, alreadyReady){
+    const el = document.createElement('div');
+    el.className = 'frame' + (alreadyReady ? ' ready' : '');
+    el.dataset.id = frameData.id;
+    el.innerHTML = `
+      <img src="${frameData.dataUrl}" alt="${escapeHtml(frameData.name)}">
+      <div class="frame-number">${String(index+1).padStart(2,'0')}</div>
+      <button class="frame-remove" aria-label="Remove image" type="button">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="frame-footer">
+        <span class="frame-name">${escapeHtml(frameData.name)}</span>
+        <div class="progress-track"><div class="progress-fill" style="width:${alreadyReady ? 100 : 0}%"></div></div>
+        <span class="frame-status">${alreadyReady ? 'Ready' : 'Developing…'}</span>
+      </div>
+    `;
+    el.querySelector('.frame-remove').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      removeFrame(frameData.id);
+    });
+    return el;
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function removeFrame(id){
+    frames = frames.filter(f => f.id !== id);
+    saveToStorage();
+    renumberAndRerender();
+  }
+
+  function renumberAndRerender(){
+    renderAll();
+  }
+
+  clearAllBtn.addEventListener('click', ()=>{
+    frames = [];
+    saveToStorage();
+    renderAll();
+  });
+
+  // ---------- validation ----------
+  function isAcceptedFile(file){
+    if(ACCEPTED_TYPES.includes(file.type)) return true;
+    // fallback for browsers/OSes that report empty mime types
+    return /\.(jpe?g|png|gif)$/i.test(file.name);
+  }
+
+  // ---------- upload simulation pipeline ----------
+  function handleFiles(fileList){
+    const files = Array.from(fileList);
+    if(files.length === 0) return;
+
+    files.forEach(file => {
+      if(!isAcceptedFile(file)){
+        showError(`"${file.name}" isn't a JPG, PNG, or GIF — skipped.`);
+        return;
+      }
+      if(file.size > MAX_BYTES){
+        showError(`"${file.name}" is larger than 4MB — skipped.`);
+        return;
+      }
+      readAndDevelop(file);
+    });
+  }
+
+  function readAndDevelop(file){
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const id = 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      const frameData = { id, name: file.name, type: file.type, size: file.size, dataUrl: e.target.result };
+
+      // add to DOM immediately in "developing" state, not yet in storage
+      const el = buildFrameEl(frameData, frames.length, false);
+      grid.appendChild(el);
+      emptyState.classList.add('hidden');
+
+      simulateProgress(el, ()=>{
+        frames.push(frameData);
+        saveToStorage();
+        el.classList.add('ready');
+        el.querySelector('.frame-status').textContent = 'Ready';
+        renumberFramesInDom();
+        updateChrome();
+      });
+    };
+    reader.onerror = ()=> showError(`Could not read "${file.name}".`);
+    reader.readAsDataURL(file);
+  }
+
+  function simulateProgress(el, onDone){
+    const fill = el.querySelector('.progress-fill');
+    let pct = 0;
+    const timer = setInterval(()=>{
+      pct += 8 + Math.random()*14;
+      if(pct >= 100){
+        pct = 100;
+        fill.style.width = pct + '%';
+        clearInterval(timer);
+        setTimeout(onDone, 150);
+      }else{
+        fill.style.width = pct + '%';
+      }
+    }, 140);
+  }
+
+  function renumberFramesInDom(){
+    const els = grid.querySelectorAll('.frame');
+    els.forEach((el, i)=>{
+      const numEl = el.querySelector('.frame-number');
+      if(numEl) numEl.textContent = String(i+1).padStart(2,'0');
+    });
+  }
+
+  // ---------- drag & drop wiring ----------
+  ['dragenter','dragover'].forEach(evt=>{
+    dropzone.addEventListener(evt, (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add('drag-active');
+    });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    dropzone.addEventListener(evt, (e)=>{
+      e.preventDefault(); e.stopPropagation();
+      if(evt === 'dragleave' && e.target !== dropzone) return;
+      dropzone.classList.remove('drag-active');
+    });
+  });
+  dropzone.addEventListener('drop', (e)=>{
+    const dt = e.dataTransfer;
+    if(dt && dt.files) handleFiles(dt.files);
+  });
+
+  dropzone.addEventListener('click', ()=> fileInput.click());
+  dropzone.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener('change', (e)=>{
+    handleFiles(e.target.files);
+    fileInput.value = ''; // allow re-selecting the same file
+  });
+})();
+</script>
+</body>
+</html>

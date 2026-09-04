@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relay — Channel 4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --graphite:#11171B;
+    --panel:#182024;
+    --panel-soft:#1E282D;
+    --console-line:rgba(224,232,224,0.08);
+    --phosphor:#7FD9A6;
+    --phosphor-dim:rgba(127,217,166,0.14);
+    --copper:#D98E4A;
+    --copper-dim:rgba(217,142,74,0.16);
+    --paper:#E9EDE9;
+    --dim:#7C8A88;
+    --alert:#D9634A;
+    --radius:16px;
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0; min-height:100vh;
+    background:
+      radial-gradient(circle at 15% -10%, #1c2a26 0%, transparent 55%),
+      var(--graphite);
+    color:var(--paper);
+    font-family:'Inter', sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding:28px 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  }
+
+  .console{
+    width:100%; max-width:480px; height:min(720px, 88vh);
+    background:var(--panel); border-radius:20px;
+    border:1px solid rgba(233,237,233,0.07);
+    box-shadow:0 40px 80px -30px rgba(0,0,0,0.7);
+    display:flex; flex-direction:column; overflow:hidden;
+    position:relative;
+  }
+  .console::after{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; border-bottom:1px solid var(--console-line);
+    background:var(--panel-soft); flex-shrink:0; position:relative; z-index:1;
+  }
+  .ch-id{ display:flex; align-items:center; gap:11px; }
+  .ch-dot{
+    width:9px; height:9px; border-radius:50%; background:var(--phosphor);
+    box-shadow:0 0 0 3px var(--phosphor-dim);
+    animation:pulse-dot 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse-dot{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
+  .ch-name{ font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:15px; letter-spacing:0.3px; }
+  .ch-sub{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--dim); letter-spacing:1.5px; text-transform:uppercase; margin-top:2px; }
+
+  .signal-bars{ display:flex; align-items:flex-end; gap:3px; height:16px; }
+  .signal-bars span{
+    width:3px; background:var(--phosphor); border-radius:1px; opacity:0.35;
+    animation:bar-pulse 1.6s ease-in-out infinite;
+  }
+  .signal-bars span:nth-child(1){ height:5px; animation-delay:0s; }
+  .signal-bars span:nth-child(2){ height:9px; animation-delay:.15s; }
+  .signal-bars span:nth-child(3){ height:13px; animation-delay:.3s; }
+  .signal-bars span:nth-child(4){ height:16px; animation-delay:.45s; }
+  @keyframes bar-pulse{ 0%,100%{ opacity:.3; } 50%{ opacity:1; } }
+
+  /* ---------- log ---------- */
+  .log{
+    flex:1; overflow-y:auto; padding:18px 16px 10px;
+    display:flex; flex-direction:column; gap:4px;
+    scroll-behavior:smooth; position:relative; z-index:1;
+  }
+  .log::-webkit-scrollbar{ width:6px; }
+  .log::-webkit-scrollbar-thumb{ background:rgba(233,237,233,0.1); border-radius:3px; }
+
+  .day-divider{
+    text-align:center; font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:2px;
+    text-transform:uppercase; color:var(--dim); margin:14px 0 10px; position:relative;
+  }
+  .day-divider::before, .day-divider::after{
+    content:''; position:absolute; top:50%; width:28%; height:1px; background:var(--console-line);
+  }
+  .day-divider::before{ left:0; } .day-divider::after{ right:0; }
+
+  .entry{ display:flex; flex-direction:column; margin:7px 0; animation:entry-in .35s var(--ease); max-width:82%; }
+  @keyframes entry-in{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
+
+  .entry.sent{ align-self:flex-end; align-items:flex-end; }
+  .entry.received{ align-self:flex-start; align-items:flex-start; }
+
+  .meta-row{ display:flex; gap:7px; align-items:baseline; margin-bottom:4px; padding:0 3px; }
+  .call-sign{ font-family:'JetBrains Mono', monospace; font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--dim); }
+  .entry.sent .call-sign{ color:var(--copper); }
+  .entry.received .call-sign{ color:var(--phosphor); }
+  .timestamp{ font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--dim); opacity:.7; }
+
+  .bubble{
+    padding:10px 14px; border-radius:14px; font-size:14px; line-height:1.45;
+    word-wrap:break-word; white-space:pre-wrap;
+  }
+  .entry.sent .bubble{
+    background:var(--copper-dim); border:1px solid rgba(217,142,74,0.3);
+    color:#F2DEC6; border-bottom-right-radius:4px;
+  }
+  .entry.received .bubble{
+    background:var(--phosphor-dim); border:1px solid rgba(127,217,166,0.25);
+    color:#D7EFE1; border-bottom-left-radius:4px;
+  }
+
+  .typing-entry{ display:flex; flex-direction:column; align-items:flex-start; margin:7px 0; animation:entry-in .3s var(--ease); }
+  .typing-bubble{
+    display:flex; align-items:center; gap:5px; padding:11px 14px; border-radius:14px; border-bottom-left-radius:4px;
+    background:var(--phosphor-dim); border:1px solid rgba(127,217,166,0.25);
+  }
+  .typing-bubble .tdot{ width:5px; height:5px; border-radius:50%; background:var(--phosphor); animation:tdot 1.2s ease-in-out infinite; }
+  .typing-bubble .tdot:nth-child(2){ animation-delay:.15s; }
+  .typing-bubble .tdot:nth-child(3){ animation-delay:.3s; }
+  @keyframes tdot{ 0%,60%,100%{ opacity:.25; transform:translateY(0); } 30%{ opacity:1; transform:translateY(-3px); } }
+
+  .empty-log{
+    margin:auto; text-align:center; color:var(--dim); font-family:'JetBrains Mono', monospace;
+    font-size:11.5px; letter-spacing:0.5px; padding:30px 20px; line-height:1.7;
+  }
+
+  /* ---------- input ---------- */
+  .transmit-row{
+    display:flex; gap:10px; align-items:center;
+    padding:14px 16px; border-top:1px solid var(--console-line);
+    background:var(--panel-soft); flex-shrink:0; position:relative; z-index:1;
+  }
+  .input-shell{
+    flex:1; background:var(--graphite); border:1px solid rgba(233,237,233,0.1);
+    border-radius:12px; padding:0 4px 0 14px; display:flex; align-items:center;
+    transition:border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .input-shell:focus-within{ border-color:var(--phosphor); box-shadow:0 0 0 3px var(--phosphor-dim); }
+  #msg-input{
+    flex:1; background:none; border:none; outline:none; resize:none;
+    font-family:'Inter', sans-serif; font-size:14px; color:var(--paper);
+    padding:12px 6px; max-height:90px; line-height:1.4;
+  }
+  #msg-input::placeholder{ color:var(--dim); }
+
+  #send-btn{
+    flex-shrink:0; width:44px; height:44px; border-radius:12px; border:none; cursor:pointer;
+    background:var(--copper); color:var(--graphite); display:flex; align-items:center; justify-content:center;
+    transition:transform .15s var(--ease), background .2s var(--ease), opacity .2s var(--ease);
+  }
+  #send-btn:hover{ background:#e5a469; }
+  #send-btn:active{ transform:scale(0.92); }
+  #send-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .console-footer{
+    text-align:center; padding:8px 0 4px; font-family:'JetBrains Mono', monospace;
+    font-size:9px; color:var(--dim); opacity:.55; letter-spacing:1px; background:var(--panel-soft);
+  }
+
+  @media (max-width:400px){
+    .console{ height:92vh; border-radius:14px; }
+    .entry{ max-width:88%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="console">
+  <header>
+    <div class="ch-id">
+      <span class="ch-dot"></span>
+      <div>
+        <div class="ch-name">Relay — Harbor Control</div>
+        <div class="ch-sub">Channel 4 · Open frequency</div>
+      </div>
+    </div>
+    <div class="signal-bars"><span></span><span></span><span></span><span></span></div>
+  </header>
+
+  <div class="log" id="log">
+    <div class="empty-log" id="empty-log">— No transmissions yet —<br>Send a message to open the channel.</div>
+  </div>
+
+  <div class="transmit-row">
+    <div class="input-shell">
+      <textarea id="msg-input" rows="1" placeholder="Type a transmission…" maxlength="500"></textarea>
+    </div>
+    <button id="send-btn" type="button" aria-label="Send message">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+  <div class="console-footer">Stored locally on this device · Channel 4</div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'relay_channel4_log_v1';
+
+  const log        = document.getElementById('log');
+  const emptyLog   = document.getElementById('empty-log');
+  const input      = document.getElementById('msg-input');
+  const sendBtn    = document.getElementById('send-btn');
+
+  const BOT_NAME = 'Harbor Control';
+  const YOU_NAME = 'You';
+
+  const BOT_RESPONSES = {
+    greeting: ["Copy that — Harbor Control reading you loud and clear.", "Channel 4 open. Go ahead with your message.", "Signal received. What's your status?"],
+    question: ["Command review is in progress — stand by.", "Unable to confirm from this station, try rephrasing.", "That's a good question — logging it for the next report."],
+    thanks: ["Copy, always glad to relay.", "Roger that. Stay on channel.", "Acknowledged — 73."],
+    farewell: ["Understood. Closing this transmission — Harbor Control out.", "Copy, signing off. Channel remains open.", "Roger. See you on the next pass."],
+    default: ["Copy that transmission.", "Message logged at Harbor Control.", "Roger, relaying to the next station.", "Received — standing by for further instructions.", "Acknowledged. Over."]
+  };
+
+  function pickResponse(text){
+    const t = text.toLowerCase();
+    let pool = BOT_RESPONSES.default;
+    if(/\b(hi|hello|hey|morning|evening)\b/.test(t)) pool = BOT_RESPONSES.greeting;
+    else if(t.includes('?')) pool = BOT_RESPONSES.question;
+    else if(/\b(thanks|thank you|cheers)\b/.test(t)) pool = BOT_RESPONSES.thanks;
+    else if(/\b(bye|goodbye|later|out)\b/.test(t)) pool = BOT_RESPONSES.farewell;
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  // ---------- storage ----------
+  function loadMessages(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  function saveMessages(messages){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); }catch(e){}
+  }
+
+  let messages = loadMessages();
+
+  // ---------- rendering ----------
+  function formatTime(ts){
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  }
+  function formatDay(ts){
+    const d = new Date(ts);
+    const today = new Date();
+    const isToday = d.toDateString() === today.toDateString();
+    return isToday ? 'Today' : d.toLocaleDateString([], { month:'short', day:'numeric' });
+  }
+
+  function buildEntry(msg){
+    const entry = document.createElement('div');
+    entry.className = 'entry ' + (msg.sender === 'you' ? 'sent' : 'received');
+    entry.innerHTML = `
+      <div class="meta-row">
+        <span class="call-sign">${msg.sender === 'you' ? YOU_NAME : BOT_NAME}</span>
+        <span class="timestamp">${formatTime(msg.ts)}</span>
+      </div>
+      <div class="bubble"></div>
+    `;
+    entry.querySelector('.bubble').textContent = msg.text;
+    return entry;
+  }
+
+  function renderAll(){
+    log.innerHTML = '';
+    if(messages.length === 0){
+      log.appendChild(emptyLog);
+      return;
+    }
+    let lastDay = null;
+    messages.forEach(msg => {
+      const day = formatDay(msg.ts);
+      if(day !== lastDay){
+        const divider = document.createElement('div');
+        divider.className = 'day-divider';
+        divider.textContent = day;
+        log.appendChild(divider);
+        lastDay = day;
+      }
+      log.appendChild(buildEntry(msg));
+    });
+    scrollToBottom();
+  }
+
+  function appendMessage(msg){
+    if(messages.length === 0){
+      log.innerHTML = '';
+    }
+    const lastMsg = messages[messages.length - 1];
+    const day = formatDay(msg.ts);
+    const lastDay = lastMsg ? formatDay(lastMsg.ts) : null;
+    if(day !== lastDay){
+      const divider = document.createElement('div');
+      divider.className = 'day-divider';
+      divider.textContent = day;
+      log.appendChild(divider);
+    }
+    log.appendChild(buildEntry(msg));
+    messages.push(msg);
+    saveMessages(messages);
+    scrollToBottom();
+  }
+
+  function scrollToBottom(){
+    requestAnimationFrame(()=>{ log.scrollTop = log.scrollHeight; });
+  }
+
+  let typingEl = null;
+  function showTyping(){
+    typingEl = document.createElement('div');
+    typingEl.className = 'typing-entry';
+    typingEl.innerHTML = `
+      <div class="meta-row"><span class="call-sign">${BOT_NAME}</span></div>
+      <div class="typing-bubble"><span class="tdot"></span><span class="tdot"></span><span class="tdot"></span></div>
+    `;
+    log.appendChild(typingEl);
+    scrollToBottom();
+  }
+  function hideTyping(){
+    if(typingEl){ typingEl.remove(); typingEl = null; }
+  }
+
+  // ---------- send flow ----------
+  function autoGrow(){
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 90) + 'px';
+  }
+  input.addEventListener('input', autoGrow);
+
+  function sendMessage(){
+    const text = input.value.trim();
+    if(!text) return;
+
+    appendMessage({ sender:'you', text, ts:Date.now() });
+    input.value = '';
+    autoGrow();
+    input.focus();
+
+    const delay = 700 + Math.random()*900;
+    showTyping();
+    setTimeout(()=>{
+      hideTyping();
+      appendMessage({ sender:'bot', text: pickResponse(text), ts:Date.now() });
+    }, delay);
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // ---------- init ----------
+  renderAll();
+  input.focus();
+})();
+</script>
+</body>
+</html>
